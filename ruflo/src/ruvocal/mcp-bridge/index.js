@@ -213,12 +213,17 @@ class StdioMcpClient {
       const msg = JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
       this.pending.set(id, { resolve, reject });
       this.process.stdin.write(msg);
+      // initialize is the cold-start gate for backends like ruflo/ruvector
+      // which boot a full claude-flow / ruvector kernel — on Cloud Run with
+      // npx fetching artifacts it can take 45-60s. Other RPC methods are
+      // post-init and stay snappy.
+      const timeoutMs = method === "initialize" ? 120000 : 30000;
       setTimeout(() => {
         if (this.pending.has(id)) {
           this.pending.delete(id);
           reject(new Error(`${this.name} timeout for ${method}`));
         }
-      }, 30000);
+      }, timeoutMs);
     });
   }
 
