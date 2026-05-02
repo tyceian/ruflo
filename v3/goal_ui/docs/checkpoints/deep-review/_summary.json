@@ -1,0 +1,55 @@
+{
+  "routes": [
+    {
+      "theme": "light",
+      "route": "/",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "light",
+      "route": "/agents",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "light",
+      "route": "/demo",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "light",
+      "route": "/notexist",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "dark",
+      "route": "/",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "dark",
+      "route": "/agents",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "dark",
+      "route": "/demo",
+      "status": 200,
+      "errs": 0
+    },
+    {
+      "theme": "dark",
+      "route": "/notexist",
+      "status": 200,
+      "errs": 0
+    }
+  ],
+  "totalErrors": 0,
+  "errors": [],
+  "ts": "2026-05-02T17:18:30.008Z"
+}
