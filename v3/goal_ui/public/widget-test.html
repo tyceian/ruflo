@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RuFlo Research — Widget Test Page</title>
+  <!--
+    Minimal page used by tests/e2e/widget.spec.ts to verify the
+    embeddable widget renders cleanly. Differs from widget-embed.html
+    which targets human demo: this page has stable test selectors,
+    no instructional copy, and intentionally minimal styling so
+    Playwright can assert the WIDGET's content without DOM noise.
+
+    Same CSP envelope as the main app (Step 22d):
+      'wasm-unsafe-eval' for ruvector
+      'unsafe-inline' on style for widget's injected styles
+  -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'wasm-unsafe-eval';
+    style-src 'self' 'unsafe-inline';
+    img-src 'self' data: https:;
+    font-src 'self' data:;
+    connect-src 'self' http://localhost:8787 https://goal.ruv.io https://huggingface.co https://*.huggingface.co;
+    worker-src 'self' blob:;
+    object-src 'none';
+    base-uri 'self';
+  " />
+  <link rel="stylesheet" href="/widget.css" />
+  <style>
+    body { margin: 0; padding: 16px; font-family: system-ui; background: #0a0a0a; color: #fff; }
+    #ruflo-research-widget-container { min-height: 200px; border: 1px dashed #333; border-radius: 6px; padding: 8px; }
+    [data-testid="widget-status"], #widget-status { font-family: monospace; font-size: 12px; color: #888; padding: 4px 0; }
+  </style>
+</head>
+<body>
+  <h1 data-testid="page-heading">Widget Test Page</h1>
+  <div data-testid="widget-status" id="widget-status">loading…</div>
+  <div id="ruflo-research-widget-container" data-testid="widget-container"></div>
+
+  <!-- External config (CSP-compliant — no inline script). -->
+  <script src="/widget-test-config.js"></script>
+  <script src="/widget.js"></script>
+</body>
+</html>
