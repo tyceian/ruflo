@@ -109,6 +109,14 @@ export async function addTrajectory(t: Trajectory): Promise<void> {
 /**
  * Update a stored trajectory's `userVerdict` + bump `completedAt`.
  * No-op if the trajectory id isn't found.
+ *
+ * Side-effect (R-4.3): when the verdict transitions to `'kept'` for
+ * the first time, the trajectory's goalText is embedded and persisted
+ * into the `kept-trajectory-goals` HNSW namespace so future
+ * `searchKeptTrajectoryGoals(query)` calls can surface it as an
+ * autocomplete suggestion. Best-effort — embed failures are
+ * swallowed (logged) so an embedder hiccup never breaks the verdict
+ * write.
  */
 export async function setTrajectoryVerdict(
   goalHash: string,
@@ -119,9 +127,17 @@ export async function setTrajectoryVerdict(
   const id = trajectoryId(goalHash, startedAt);
   const entry = await client.get<Trajectory>(id);
   if (!entry) return;
+  const wasFirstKeep = verdict === 'kept' && entry.data.userVerdict !== 'kept';
   const next: Trajectory = { ...entry.data, userVerdict: verdict, completedAt: Date.now() };
   TrajectorySchema.parse(next);
   await client.put(id, NAMESPACE, next);
+
+  if (wasFirstKeep) {
+    void addKeptTrajectoryGoal(entry.data.goalText, entry.data.goalHash).catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('[trajectory] addKeptTrajectoryGoal failed (non-fatal):', err?.message ?? err);
+    });
+  }
 }
 
 /** Retrieve all stored trajectories (newest first by completedAt). */
@@ -137,4 +153,56 @@ export async function listTrajectories(): Promise<Trajectory[]> {
 export async function deleteTrajectory(goalHash: string, startedAt: number): Promise<void> {
   const client = getAgentDbClient();
   await client.delete(trajectoryId(goalHash, startedAt));
+}
+
+// ── R-4.3: kept-trajectory-goal HNSW recall ─────────────────────
+
+const KEPT_GOALS_NS = 'kept-trajectory-goals';
+
+export interface KeptGoalHit {
+  id: string;
+  text: string;
+  score: number;
+  goalHash: string;
+}
+
+/**
+ * Embed `goalText` and persist into the `kept-trajectory-goals`
+ * namespace with its vector, keyed by goalHash. Idempotent on the
+ * same goalHash. Only called as a side-effect of
+ * `setTrajectoryVerdict(... 'kept')` — the namespace exclusively
+ * holds goals from successful research runs.
+ */
+export async function addKeptTrajectoryGoal(goalText: string, goalHash: string): Promise<void> {
+  const text = goalText.trim();
+  if (!text || !goalHash) return;
+  // Bare alias `@/integrations/rvf/embed` so vite.config.ts's
+  // widget-mode alias swaps in the no-op stub (per R-2.4).
+  const { embedText } = await import('@/integrations/rvf/embed');
+  const vec = await embedText(text);
+  const client = getAgentDbClient();
+  const id = `${KEPT_GOALS_NS}:${goalHash}`;
+  await client.put(id, KEPT_GOALS_NS, { text, goalHash, ts: Date.now() }, vec);
+}
+
+/**
+ * HNSW-recall the top-K kept-trajectory goals semantically similar
+ * to `query`. Returns at most `k` results, sorted by cosine score.
+ *
+ * Returns `[]` for queries shorter than 4 chars (avoids autocomplete
+ * thrash on early keystrokes).
+ */
+export async function searchKeptTrajectoryGoals(query: string, k = 3): Promise<KeptGoalHit[]> {
+  const q = query.trim();
+  if (q.length < 4) return [];
+  const { embedText } = await import('@/integrations/rvf/embed');
+  const vec = await embedText(q);
+  const client = getAgentDbClient();
+  const hits = await client.searchByVector<{ text: string; goalHash: string; ts: number }>(KEPT_GOALS_NS, vec, k);
+  return hits.map((h) => ({
+    id: h.id,
+    text: h.entry.data.text,
+    score: h.score,
+    goalHash: h.entry.data.goalHash,
+  }));
 }

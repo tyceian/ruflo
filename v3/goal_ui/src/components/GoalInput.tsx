@@ -5,6 +5,7 @@ import { Target, Sparkles, Settings, TrendingUp, Building2, Heart, GraduationCap
 import { cn } from "@/lib/utils";
 import { invokeFunction } from "@/integrations/functions/client";
 import { searchPastGoals, type PastGoalHit } from "@/integrations/rvf/goalRepo";
+import { searchKeptTrajectoryGoals, type KeptGoalHit } from "@/integrations/agentdb/trajectory";
 import { RVF_ENABLED } from "@/lib/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,18 +36,31 @@ export const GoalInput = ({ onSubmit, isPlanning, onAdvancedSettings, onConfigUp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialValue]);
   const [isGenerating, setIsGenerating] = useState(false);
-  // R-2.4: HNSW recall of past goals for autocomplete chips. Only
-  // queries when RVF storage is enabled (otherwise nothing has been
-  // indexed). Debounced 300ms so we don't fire on every keystroke.
-  const [pastGoalSuggestions, setPastGoalSuggestions] = useState<PastGoalHit[]>([]);
+  // R-2.4 + R-4.3: HNSW recall for autocomplete chips. Two tiers:
+  //   1. KEPT trajectory goals (R-4.3) — high signal: goals from
+  //      research runs the user marked as 'kept'. Surfaced first.
+  //   2. Past goals (R-2.4) — broader: every saved goal ≥10 chars.
+  //      Used as fallback when there are no kept-trajectory hits.
+  // Debounced 300ms; only queries when RVF storage is enabled.
+  type Suggestion = { id: string; text: string; score: number; kind: 'kept' | 'past' };
+  const [goalSuggestions, setGoalSuggestions] = useState<Suggestion[]>([]);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!RVF_ENABLED) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      void searchPastGoals(goal, 3)
-        .then(setPastGoalSuggestions)
-        .catch(() => setPastGoalSuggestions([]));
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const keptHits: KeptGoalHit[] = await searchKeptTrajectoryGoals(goal, 3);
+        if (keptHits.length > 0) {
+          setGoalSuggestions(keptHits.map((h) => ({ id: h.id, text: h.text, score: h.score, kind: 'kept' as const })));
+          return;
+        }
+        // Fallback to broader past-goals recall.
+        const pastHits: PastGoalHit[] = await searchPastGoals(goal, 3);
+        setGoalSuggestions(pastHits.map((h) => ({ id: h.id, text: h.text, score: h.score, kind: 'past' as const })));
+      } catch {
+        setGoalSuggestions([]);
+      }
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -157,17 +171,25 @@ export const GoalInput = ({ onSubmit, isPlanning, onAdvancedSettings, onConfigUp
           <p className="text-[10px] sm:text-xs text-muted-foreground mt-1.5 sm:mt-2">
             The GOAP system will analyze your objective and plan the optimal research workflow
           </p>
-          {pastGoalSuggestions.length > 0 && (
+          {goalSuggestions.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="past-goal-suggestions">
               <History className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-              <span className="text-[10px] sm:text-xs text-muted-foreground mr-1">Similar past goals:</span>
-              {pastGoalSuggestions.map((s) => (
+              <span className="text-[10px] sm:text-xs text-muted-foreground mr-1">
+                {goalSuggestions[0].kind === 'kept' ? 'Kept past goals:' : 'Similar past goals:'}
+              </span>
+              {goalSuggestions.map((s) => (
                 <button
                   key={s.id}
                   type="button"
                   onClick={() => setGoal(s.text)}
-                  className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-muted hover:bg-accent transition-colors text-foreground/80 hover:text-foreground"
-                  title={`cosine ${s.score.toFixed(3)}`}
+                  className={cn(
+                    'text-[10px] sm:text-xs px-2 py-0.5 rounded-full transition-colors',
+                    s.kind === 'kept'
+                      ? 'bg-primary/10 hover:bg-primary/20 text-primary'
+                      : 'bg-muted hover:bg-accent text-foreground/80 hover:text-foreground',
+                  )}
+                  title={`cosine ${s.score.toFixed(3)} · ${s.kind === 'kept' ? 'kept trajectory' : 'past goal'}`}
+                  data-suggestion-kind={s.kind}
                 >
                   {s.text.length > 60 ? s.text.slice(0, 57) + '…' : s.text}
                 </button>
