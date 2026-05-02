@@ -53,3 +53,9 @@ coordination/orchestration/*
 claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
+
+# Playwright e2e artifacts
+tests/e2e/__report__/
+tests/e2e/__screenshots__/
+test-results/
+playwright-report/
