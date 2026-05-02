@@ -10,12 +10,23 @@
  *   - Returns a normalized `{ status, body }` instead of a Response
  *     so it can be wrapped by either Hono (LOCAL_FN dev) or GCF
  *     (production) without re-implementing transport.
+ *   - User-supplied strings wrapped in `<user_input>` delimiters
+ *     and LLM tool-call output validated against a Zod schema
+ *     (ADR-093 §S3 / Step 22c).
  *
  * Mock mode: if `LOVABLE_API_KEY` is unset, returns 3 canned goals
  * tagged with the requested category so the wiring can be exercised
  * locally without an upstream key. Unsuitable for production —
  * deployment must set the key.
  */
+import { z } from 'zod';
+import { wrapUserInput } from '../_lib/sanitize';
+
+const ToolOutputSchema = z.object({
+  goals: z
+    .array(z.object({ title: z.string().min(1), category: z.string().optional() }))
+    .min(1),
+});
 
 const SYSTEM_PROMPT = `You are an expert research consultant and futurist who helps formulate cutting-edge, innovative research objectives that push boundaries.
 
@@ -112,9 +123,12 @@ export async function generateResearchGoalHandler(
     };
   }
 
+  // Wrap user-supplied strings in delimiters before composing the prompt.
+  const safeCategory = wrapUserInput(category);
+  const safeContext = wrapUserInput(customContext ?? category);
   const userPrompt =
     CATEGORY_PROMPTS[category.toLowerCase()] ??
-    `Generate 3 innovative, boundary-pushing research goals based on: ${customContext || category}.`;
+    `Generate 3 innovative, boundary-pushing research goals based on: ${safeContext}. Category hint: ${safeCategory}.`;
 
   const upstream = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -153,12 +167,13 @@ export async function generateResearchGoalHandler(
   if (!args) {
     return { status: 502, body: { error: 'No tool call in AI response' } };
   }
-  let parsed: { goals?: Array<{ title?: string }> };
-  try {
-    parsed = JSON.parse(args);
-  } catch {
-    return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } };
+  let raw: unknown;
+  try { raw = JSON.parse(args); }
+  catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
+  const validated = ToolOutputSchema.safeParse(raw);
+  if (!validated.success) {
+    return { status: 502, body: { error: 'AI tool-call output failed schema validation' } };
   }
-  const goals = (parsed.goals ?? []).map((g) => g?.title ?? '').filter(Boolean);
+  const goals = validated.data.goals.map((g) => g.title).filter(Boolean);
   return { status: 200, body: { goals } };
 }

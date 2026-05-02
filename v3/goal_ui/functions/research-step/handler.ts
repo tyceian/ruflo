@@ -12,6 +12,9 @@
  * items for the requested stepTitle.
  */
 
+import { z } from 'zod';
+import { wrapUserInput } from '../_lib/sanitize';
+
 interface ResearchDataItem {
   title: string;
   content: string;
@@ -19,6 +22,17 @@ interface ResearchDataItem {
   confidence?: number;
   timestamp?: string;
 }
+
+const ToolOutputSchema = z.object({
+  findings: z
+    .array(z.object({
+      title: z.string().min(1),
+      content: z.string(),
+      source: z.string().optional(),
+      confidence: z.number().min(0).max(1).optional(),
+    }))
+    .min(1),
+});
 
 const SYSTEM_PROMPT =
   'You are a meticulous research analyst executing a single step of a ' +
@@ -91,13 +105,17 @@ export async function researchStepHandler(
     };
   }
 
+  // Prior step content is LLM-generated but treated as untrusted —
+  // wrap each finding in <user_input> delimiters so a model can't
+  // emit prompt-injection content that's then reflected back to the
+  // upstream model unwrapped.
   const ctx = (req.previousStepsData ?? []).map(s =>
-    `${s.stepTitle}:\n` + s.data.map(d => `- ${d.title}: ${d.content}`).join('\n')
+    `${wrapUserInput(s.stepTitle)}:\n` + s.data.map(d => `- ${wrapUserInput(d.title)}: ${wrapUserInput(d.content)}`).join('\n')
   ).join('\n\n');
 
   const userPrompt = [
-    `Research goal: ${goal}`,
-    `Current step: ${stepTitle} — ${stepDescription}`,
+    `Research goal: ${wrapUserInput(goal)}`,
+    `Current step: ${wrapUserInput(stepTitle)} — ${wrapUserInput(stepDescription)}`,
     ctx ? `Prior step findings:\n${ctx}` : 'No prior steps yet.',
   ].join('\n\n');
 
@@ -126,8 +144,12 @@ export async function researchStepHandler(
   };
   const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
   if (!args) return { status: 502, body: { error: 'No tool call in AI response' } };
-  let parsed: { findings?: ResearchDataItem[] };
-  try { parsed = JSON.parse(args); } catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
+  let raw: unknown;
+  try { raw = JSON.parse(args); } catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
+  const validated = ToolOutputSchema.safeParse(raw);
+  if (!validated.success) {
+    return { status: 502, body: { error: 'AI tool-call output failed schema validation' } };
+  }
   // Original returns a flat array (NOT wrapped in {findings:...}) — preserve that wire shape.
-  return { status: 200, body: parsed.findings ?? [] };
+  return { status: 200, body: validated.data.findings as ResearchDataItem[] };
 }

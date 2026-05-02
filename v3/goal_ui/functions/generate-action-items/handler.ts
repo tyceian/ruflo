@@ -8,8 +8,22 @@
  * Mock mode when `LOVABLE_API_KEY` unset returns 3 canned action items.
  */
 
+import { z } from 'zod';
+import { wrapUserInput } from '../_lib/sanitize';
+
 interface ContextFinding { title: string; content: string; source?: string }
 interface ContextStep { stepTitle: string; findings: ContextFinding[] }
+
+const ToolOutputSchema = z.object({
+  actionItems: z
+    .array(z.object({
+      title: z.string().min(1),
+      description: z.string(),
+      priority: z.enum(['critical', 'high', 'medium', 'low']),
+      timeline: z.string(),
+    }))
+    .min(1),
+});
 
 const SYSTEM_PROMPT =
   'You are an expert strategic planner. Generate contextual, actionable ' +
@@ -83,14 +97,14 @@ export async function generateActionItemsHandler(
 
   let summary = '';
   for (const step of researchContext ?? []) {
-    summary += `\n${step.stepTitle}:\n`;
+    summary += `\n${wrapUserInput(step.stepTitle)}:\n`;
     for (const f of step.findings ?? []) {
-      summary += `• ${f.title}: ${f.content}\n`;
-      if (f.source) summary += `  Source: ${f.source}\n`;
+      summary += `• ${wrapUserInput(f.title)}: ${wrapUserInput(f.content)}\n`;
+      if (f.source) summary += `  Source: ${wrapUserInput(f.source)}\n`;
     }
   }
 
-  const userPrompt = `Research goal: ${goal}\n\nFindings:${summary || '\n(no findings)'}\n\nGenerate prioritized action items.`;
+  const userPrompt = `Research goal: ${wrapUserInput(goal)}\n\nFindings:${summary || '\n(no findings)'}\n\nGenerate prioritized action items.`;
 
   const upstream = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
@@ -117,7 +131,11 @@ export async function generateActionItemsHandler(
   };
   const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
   if (!args) return { status: 502, body: { error: 'No tool call in AI response' } };
-  let parsed: { actionItems?: unknown[] };
-  try { parsed = JSON.parse(args); } catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
-  return { status: 200, body: { actionItems: parsed.actionItems ?? [] } };
+  let raw: unknown;
+  try { raw = JSON.parse(args); } catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
+  const validated = ToolOutputSchema.safeParse(raw);
+  if (!validated.success) {
+    return { status: 502, body: { error: 'AI tool-call output failed schema validation' } };
+  }
+  return { status: 200, body: { actionItems: validated.data.actionItems } };
 }

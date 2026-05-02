@@ -21,6 +21,7 @@
     "functions:dev": "tsx functions/server.ts",
     "functions:deploy": "echo 'gcloud functions deploy <name> — wire in Step 22d / Step 24' && exit 1",
     "check:secrets": "bash scripts/check-secrets.sh",
+    "check:handler-fallback": "tsx scripts/check-handler-fallback.mjs",
     "postbuild": "bash scripts/check-secrets.sh"
   },
   "dependencies": {

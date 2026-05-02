@@ -12,10 +12,17 @@
  * matters for Step 21a's DoD.
  */
 
+import { z } from 'zod';
+import { wrapUserInput } from '../_lib/sanitize';
+
 const SYSTEM_PROMPT =
   'You are an expert research workflow architect specializing in GOAP ' +
   '(Goal-Oriented Action Planning) configuration optimization. Generate ' +
   'optimized research configuration settings based on the given preset/objective.';
+
+const ToolOutputSchema = z.object({
+  config: z.object({}).passthrough(),
+});
 
 const TOOL = {
   type: 'function',
@@ -81,7 +88,7 @@ export async function optimizeResearchConfigHandler(
     };
   }
 
-  const userPrompt = `Optimize research settings for preset: ${preset}. Goal: ${currentGoal || 'general research'}`;
+  const userPrompt = `Optimize research settings for preset: ${wrapUserInput(preset)}. Goal: ${wrapUserInput(currentGoal || 'general research')}`;
   const upstream = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
@@ -107,7 +114,11 @@ export async function optimizeResearchConfigHandler(
   };
   const args = data.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
   if (!args) return { status: 502, body: { error: 'No tool call in AI response' } };
-  let parsed: { config?: unknown };
-  try { parsed = JSON.parse(args); } catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
-  return { status: 200, body: { config: parsed.config ?? {} } };
+  let raw: unknown;
+  try { raw = JSON.parse(args); } catch { return { status: 502, body: { error: 'Failed to parse AI tool-call arguments' } }; }
+  const validated = ToolOutputSchema.safeParse(raw);
+  if (!validated.success) {
+    return { status: 502, body: { error: 'AI tool-call output failed schema validation' } };
+  }
+  return { status: 200, body: { config: validated.data.config } };
 }
