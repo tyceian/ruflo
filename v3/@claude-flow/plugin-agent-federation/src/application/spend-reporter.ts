@@ -82,3 +82,113 @@ export class InMemorySpendReporter implements SpendReporter {
     this.buffer.length = 0;
   }
 }
+
+/**
+ * Minimal memory-backend interface (ADR-110). The integrator wires this
+ * to whatever store satisfies their durability/consistency needs:
+ * ruflo memory, Redis, DynamoDB, file-backed JSON, etc. The federation
+ * plugin doesn't import any specific memory client — pluggable by
+ * design.
+ */
+export interface MemoryStore {
+  /** Persist a value under (namespace, key). Optional TTL in seconds. */
+  store(args: {
+    namespace: string;
+    key: string;
+    value: string;
+    ttl?: number;
+  }): Promise<void>;
+}
+
+/** Configuration for `MemorySpendReporter`. See ADR-110. */
+export interface MemorySpendReporterConfig {
+  /** Memory store impl. Required. */
+  readonly memoryStore: MemoryStore;
+  /** Namespace per the cost-tracker consumer contract. Default: `federation-spend`. */
+  readonly namespace?: string;
+  /** Optional TTL in seconds. Default: 7 days. Cost-tracker rolling windows are 1h/24h/7d, so anything older is irrelevant. */
+  readonly ttlSeconds?: number;
+}
+
+/** Default namespace per cost-tracker's `plugins/ruflo-cost-tracker/scripts/federation.mjs`. */
+export const DEFAULT_FEDERATION_SPEND_NAMESPACE = 'federation-spend';
+
+/** Default TTL: 7 days, matching cost-tracker's longest rolling window. */
+export const DEFAULT_FEDERATION_SPEND_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/**
+ * Production reporter (ADR-110) that satisfies the cost-tracker
+ * consumer contract: writes to namespace `federation-spend`, key
+ * `fed-spend-<peerId>-<ts>`. The consumer
+ * (`plugins/ruflo-cost-tracker/scripts/federation.mjs`) `memory list`s
+ * the namespace, retrieves each key, and aggregates into rolling
+ * windows.
+ *
+ * Storage-agnostic: the integrator injects a `MemoryStore`
+ * implementation. Common wirings:
+ *
+ *   // ruflo memory MCP
+ *   new MemorySpendReporter({
+ *     memoryStore: {
+ *       store: async (a) => mcpClient.call('memory_store', a),
+ *     },
+ *   });
+ *
+ *   // ruflo memory CLI shell-out
+ *   new MemorySpendReporter({
+ *     memoryStore: {
+ *       store: async ({namespace, key, value, ttl}) => {
+ *         await execFile('npx', ['ruflo', 'memory', 'store',
+ *           '--namespace', namespace, '--key', key, '--value', value]);
+ *       },
+ *     },
+ *   });
+ *
+ * Errors from the memory backend BUBBLE UP — the reporter does not
+ * retry/swallow. Wrap with the integrator's preferred retry strategy
+ * if needed.
+ *
+ * Negative `tokensUsed` / `usdSpent` are persisted as-is. Clamping is
+ * the breaker's responsibility (see federation-breaker-service.ts);
+ * the audit/spend log is an honest mirror of what the integrator
+ * reported.
+ */
+export class MemorySpendReporter implements SpendReporter {
+  private readonly memoryStore: MemoryStore;
+  private readonly namespace: string;
+  private readonly ttlSeconds: number;
+
+  constructor(config: MemorySpendReporterConfig) {
+    this.memoryStore = config.memoryStore;
+    this.namespace = config.namespace ?? DEFAULT_FEDERATION_SPEND_NAMESPACE;
+    this.ttlSeconds = config.ttlSeconds ?? DEFAULT_FEDERATION_SPEND_TTL_SECONDS;
+  }
+
+  async reportSpend(event: FederationSpendEvent): Promise<void> {
+    const key = `fed-spend-${event.peerId}-${event.ts}`;
+    const value = JSON.stringify({
+      peerId: event.peerId,
+      taskId: event.taskId ?? null,
+      tokensUsed: event.tokensUsed,
+      usdSpent: event.usdSpent,
+      success: event.success,
+      ts: event.ts,
+    });
+    await this.memoryStore.store({
+      namespace: this.namespace,
+      key,
+      value,
+      ttl: this.ttlSeconds,
+    });
+  }
+
+  /** Read configured namespace (for the doctor/debug surface). */
+  getNamespace(): string {
+    return this.namespace;
+  }
+
+  /** Read configured TTL in seconds. */
+  getTtlSeconds(): number {
+    return this.ttlSeconds;
+  }
+}

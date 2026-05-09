@@ -22,7 +22,12 @@ export {
 } from './application/federation-breaker-service.js';
 export {
   InMemorySpendReporter,
+  MemorySpendReporter,
+  DEFAULT_FEDERATION_SPEND_NAMESPACE,
+  DEFAULT_FEDERATION_SPEND_TTL_SECONDS,
   type SpendReporter,
+  type MemoryStore,
+  type MemorySpendReporterConfig,
   type FederationSpendEvent,
 } from './application/spend-reporter.js';
 export { FederationSession, type FederationSessionProps, type SessionMetrics } from './domain/entities/federation-session.js';
