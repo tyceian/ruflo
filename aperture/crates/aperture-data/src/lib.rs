@@ -35,11 +35,57 @@ pub struct Candle {
     pub v: f64,
 }
 
+/// JSON-shaped payload returned by the wide market-info methods.
+/// Kept opaque so each provider can shape its own structure without forcing a
+/// shared type on callers; consumers parse the relevant subset themselves.
+pub type Payload = serde_json::Value;
+
 #[async_trait]
 pub trait DataSource: Send + Sync {
     fn name(&self) -> &'static str;
     async fn quote(&self, symbol: &str) -> Result<Quote, DataError>;
     async fn ohlcv(&self, symbol: &str, range: &str) -> Result<Vec<Candle>, DataError>;
+
+    // --- Wide market-info methods ----------------------------------------
+    // Default implementations return `Provider("not supported")` so future
+    // single-purpose providers (e.g. yahoo, fred) can opt into only the
+    // methods they cover. `StubDataSource` overrides every method with
+    // deterministic data.
+
+    async fn news(&self, _symbol: Option<&str>) -> Result<Payload, DataError> {
+        Err(not_supported("news"))
+    }
+    async fn macro_indicators(&self) -> Result<Payload, DataError> {
+        Err(not_supported("macro"))
+    }
+    async fn yield_curve(&self) -> Result<Payload, DataError> {
+        Err(not_supported("yields"))
+    }
+    async fn fx_rates(&self, _base: Option<&str>) -> Result<Payload, DataError> {
+        Err(not_supported("fx"))
+    }
+    async fn options_chain(&self, _symbol: &str) -> Result<Payload, DataError> {
+        Err(not_supported("options"))
+    }
+    async fn insider_trades(&self, _symbol: &str) -> Result<Payload, DataError> {
+        Err(not_supported("insider"))
+    }
+    async fn financials(&self, _symbol: &str) -> Result<Payload, DataError> {
+        Err(not_supported("financials"))
+    }
+    async fn crypto_quote(&self, _symbol: &str) -> Result<Payload, DataError> {
+        Err(not_supported("crypto_quote"))
+    }
+    async fn risk_metrics(&self, _symbols: &[String]) -> Result<Payload, DataError> {
+        Err(not_supported("risk"))
+    }
+    async fn corp_actions(&self, _symbol: &str) -> Result<Payload, DataError> {
+        Err(not_supported("corp_actions"))
+    }
+}
+
+fn not_supported(what: &str) -> DataError {
+    DataError::Provider(format!("{what} not supported by this provider"))
 }
 
 #[derive(Debug, Error)]

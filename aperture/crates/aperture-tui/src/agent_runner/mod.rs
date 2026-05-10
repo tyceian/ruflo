@@ -16,30 +16,59 @@ mod panes;
 /// matched a known agent (and ran it to EOF); `Ok(false)` if the id is
 /// unknown so the caller can surface a clear error.
 pub async fn dispatch(agent_id: &str) -> Result<bool> {
+    macro_rules! run {
+        ($agent:expr) => {
+            run_agent($agent)
+                .await
+                .map(|_| true)
+                .map_err(into_anyhow)
+        };
+    }
     match agent_id {
-        "pane.quote" => run_agent(panes::QuotePane::new())
-            .await
-            .map(|_| true)
-            .map_err(into_anyhow),
-        "pane.chart" => run_agent(panes::ChartPane::new())
-            .await
-            .map(|_| true)
-            .map_err(into_anyhow),
-        "pane.watchlist" => run_agent(panes::WatchlistPane::new())
-            .await
-            .map(|_| true)
-            .map_err(into_anyhow),
-        "pane.oracle" => run_agent(panes::OraclePane::new())
-            .await
-            .map(|_| true)
-            .map_err(into_anyhow),
-        "agent.data" => run_agent(data::DataAgent::new())
-            .await
-            .map(|_| true)
-            .map_err(into_anyhow),
+        "pane.quote" => run!(panes::QuotePane::new()),
+        "pane.chart" => run!(panes::ChartPane::new()),
+        "pane.watchlist" => run!(panes::WatchlistPane::new()),
+        "pane.oracle" => run!(panes::OraclePane::new()),
+
+        "pane.news" => run!(panes::NewsPane::new()),
+        "pane.macro" => run!(panes::MacroPane::new()),
+        "pane.yields" => run!(panes::YieldsPane::new()),
+        "pane.fx" => run!(panes::FxPane::new()),
+        "pane.options" => run!(panes::OptionsPane::new()),
+        "pane.insider" => run!(panes::InsiderPane::new()),
+        "pane.financials" => run!(panes::FinancialsPane::new()),
+        "pane.crypto" => run!(panes::CryptoPane::new()),
+        "pane.risk" => run!(panes::RiskPane::new()),
+        "pane.corpact" => run!(panes::CorpactPane::new()),
+        "pane.inbox" => run!(panes::InboxPane::new()),
+        "pane.export" => run!(panes::ExportPane::new()),
+
+        "agent.data" => run!(data::DataAgent::new()),
         _ => Ok(false),
     }
 }
+
+/// All known `--agent=<id>` strings, in dispatch order. Used by tests and
+/// the WASM shell to enumerate available agents.
+pub const KNOWN_AGENTS: &[&str] = &[
+    "pane.quote",
+    "pane.chart",
+    "pane.watchlist",
+    "pane.oracle",
+    "pane.news",
+    "pane.macro",
+    "pane.yields",
+    "pane.fx",
+    "pane.options",
+    "pane.insider",
+    "pane.financials",
+    "pane.crypto",
+    "pane.risk",
+    "pane.corpact",
+    "pane.inbox",
+    "pane.export",
+    "agent.data",
+];
 
 fn into_anyhow(e: aperture_swarm::native_stdio::TransportError) -> anyhow::Error {
     anyhow!("transport error: {e}")

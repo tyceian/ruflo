@@ -172,7 +172,47 @@ async fn execute_line(state: &mut AppState, source: &dyn DataSource, line: &str)
                     "A: (oracle pane will route to ruflo-neural-trader in Phase C)".into(),
                 ];
             }
+            Verb::News
+            | Verb::Macro
+            | Verb::Yields
+            | Verb::Fx
+            | Verb::Options
+            | Verb::Insider
+            | Verb::Financials
+            | Verb::Risk
+            | Verb::Corpact
+            | Verb::Inbox
+            | Verb::Export => {
+                // Wide capability surface — these verbs are served by the
+                // dedicated `--agent=pane.<id>` processes via the swarm bus.
+                // The in-process ratatui shell only renders the four core
+                // panes; the WASM/SvelteKit host renders the full grid.
+                state
+                    .log
+                    .push(format!("verb {:?} → pane.{} (use --agent=pane.{} or browser shell)",
+                        cmd.verb,
+                        verb_route(&cmd.verb),
+                        verb_route(&cmd.verb),
+                    ));
+            }
         },
+    }
+}
+
+fn verb_route(v: &Verb) -> &'static str {
+    match v {
+        Verb::News => "news",
+        Verb::Macro => "macro",
+        Verb::Yields => "yields",
+        Verb::Fx => "fx",
+        Verb::Options => "options",
+        Verb::Insider => "insider",
+        Verb::Financials => "financials",
+        Verb::Risk => "risk",
+        Verb::Corpact => "corpact",
+        Verb::Inbox => "inbox",
+        Verb::Export => "export",
+        _ => "?",
     }
 }
 

@@ -13,6 +13,17 @@ pub enum Verb {
     Unwatch,
     Ask,
     Crypto,
+    News,
+    Macro,
+    Yields,
+    Fx,
+    Options,
+    Insider,
+    Financials,
+    Risk,
+    Corpact,
+    Inbox,
+    Export,
 }
 
 impl Verb {
@@ -40,6 +51,28 @@ impl Verb {
             Some(Verb::Ask)
         } else if eq("CRYPTO") {
             Some(Verb::Crypto)
+        } else if eq("NEWS") {
+            Some(Verb::News)
+        } else if eq("MACRO") {
+            Some(Verb::Macro)
+        } else if eq("YIELDS") {
+            Some(Verb::Yields)
+        } else if eq("FX") {
+            Some(Verb::Fx)
+        } else if eq("OPTIONS") {
+            Some(Verb::Options)
+        } else if eq("INSIDER") {
+            Some(Verb::Insider)
+        } else if eq("FINANCIALS") {
+            Some(Verb::Financials)
+        } else if eq("RISK") {
+            Some(Verb::Risk)
+        } else if eq("CORPACT") {
+            Some(Verb::Corpact)
+        } else if eq("INBOX") {
+            Some(Verb::Inbox)
+        } else if eq("EXPORT") {
+            Some(Verb::Export)
         } else {
             None
         }
@@ -48,7 +81,15 @@ impl Verb {
     pub fn requires_symbol(self) -> bool {
         matches!(
             self,
-            Verb::Desc | Verb::Chart | Verb::Watch | Verb::Unwatch | Verb::Crypto
+            Verb::Desc
+                | Verb::Chart
+                | Verb::Watch
+                | Verb::Unwatch
+                | Verb::Crypto
+                | Verb::Options
+                | Verb::Insider
+                | Verb::Financials
+                | Verb::Corpact
         )
     }
 }

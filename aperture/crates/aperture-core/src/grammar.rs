@@ -84,7 +84,18 @@ fn finish_bare(verb: Verb, rest: &[Tok], go: bool) -> Result<Command, ParseError
 fn bare_verb(t: &Tok) -> Option<Verb> {
     let s = t.as_str();
     match Verb::from_token(s)? {
-        v @ (Verb::Help | Verb::Cls | Verb::Exit | Verb::List | Verb::Ask) => Some(v),
+        v @ (Verb::Help
+        | Verb::Cls
+        | Verb::Exit
+        | Verb::List
+        | Verb::Ask
+        | Verb::News
+        | Verb::Macro
+        | Verb::Yields
+        | Verb::Fx
+        | Verb::Risk
+        | Verb::Inbox
+        | Verb::Export) => Some(v),
         _ => None,
     }
 }

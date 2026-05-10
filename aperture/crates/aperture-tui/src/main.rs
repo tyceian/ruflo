@@ -14,7 +14,8 @@ async fn main() -> Result<()> {
         let matched = agent_runner::dispatch(agent_id).await?;
         if !matched {
             return Err(anyhow!(
-                "unknown --agent=<id>: `{agent_id}` (known: pane.quote, pane.chart, pane.watchlist, pane.oracle, agent.data)"
+                "unknown --agent=<id>: `{agent_id}` (known: {})",
+                agent_runner::KNOWN_AGENTS.join(", ")
             ));
         }
         return Ok(());
