@@ -144,6 +144,23 @@ export {
   type AverageEmbeddingsOptions,
 } from './embedding-fusion.js';
 
+// ADR-121 Phase 13 — Standard IR evaluation metrics for benchmarking
+// the RAG primitives. Pure functions: recall@k, precision@k, MRR,
+// nDCG@k (binary + graded). Used by scripts/benchmark-rag-primitives.mjs
+// to produce comparable numbers across all 5 search_text_* tools.
+export {
+  recallAtK,
+  precisionAtK,
+  reciprocalRank,
+  meanReciprocalRank,
+  dcgAtK,
+  idcgAtK,
+  ndcgAtK,
+  meanMetric,
+  type RelevanceSet,
+  type GradedRelevance,
+} from './ir-metrics.js';
+
 export type { AutoEmbeddingConfig } from './embedding-service.js';
 
 // RVF embedding service (pure-TS hash-based embeddings)

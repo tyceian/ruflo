@@ -479,6 +479,42 @@ jobs:
         shell: bash
         run: node scripts/smoke-embeddings-diskann.mjs
 
+  rag-primitive-benchmark:
+    # ADR-121 Phase 13 — End-to-end benchmark of all 5 RAG primitives
+    # (search_text, _batch, _diverse, _ensemble, _hyde) on a controlled
+    # corpus with binary relevance judgements. Measures recall@5, MRR,
+    # nDCG@5, and mean latency for each — produces comparable numbers
+    # validating the SOTA primitive claims with actual metrics, not
+    # contract assertions.
+    #
+    # Pass criteria: every primitive returns non-zero recall on at
+    # least one query (pipeline-integrity check). Specific quality
+    # ordering is reported but not asserted — MMR is expected to
+    # trade recall for diversity, etc.
+    name: rag primitives benchmark (#2036, ADR-121 Phase 13)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build embeddings then CLI
+        run: |
+          cd v3/@claude-flow/embeddings
+          npm install --no-audit --no-fund --legacy-peer-deps
+          npx tsc -p tsconfig.json
+          cd ../cli
+          npm install --no-audit --no-fund --legacy-peer-deps
+          npx tsc --build --force tsconfig.json
+
+      - name: Run RAG primitive benchmark
+        shell: bash
+        run: node scripts/benchmark-rag-primitives.mjs
+
   cli-search-text-hyde-smoke:
     # ADR-121 Phase 12 — embeddings_search_text_hyde (HyDE embedding-level fusion).
     # Caller provides N hypothetical-answer texts (typically LLM-generated),
