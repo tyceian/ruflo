@@ -107,31 +107,15 @@ class AgentRegistry {
   /**
    * List all registered agents, optionally filtered by status.
    * I added the status filter param because I kept manually filtering the result array.
+   * Also sorting by registeredAt ascending by default so the order is deterministic.
    */
   list(filterStatus?: AgentStatus): AgentMetadata[] {
-    const all = Array.from(this.agents.values()).map((e) => e.metadata);
+    const all = Array.from(this.agents.values())
+      .map((e) => e.metadata)
+      .sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime());
     if (filterStatus !== undefined) {
       return all.filter((m) => m.status === filterStatus);
     }
     return all;
   }
-
-  /**
-   * Subscribe to registry events: 'register', 'unregister', 'statusChange'.
-   */
-  on(event: string, listener: (entry: AgentRegistryEntry) => void): void {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, []);
-    }
-    this.listeners.get(event)!.push(listener);
-  }
-
-  private emit(event: string, entry: AgentRegistryEntry): void {
-    const eventListeners = this.listeners.get(event);
-    if (eventListeners) {
-      eventListeners.forEach((listener) => listener(entry));
-    }
-  }
 }
-
-export const agentRegistry = new AgentRegistry();
