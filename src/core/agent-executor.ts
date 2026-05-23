@@ -21,8 +21,10 @@ export interface ExecutionResult {
   attempts: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 30_000;
-const DEFAULT_RETRIES = 1;
+// Bumped timeout from 30s to 60s — some of my agents do heavier LLM calls
+const DEFAULT_TIMEOUT_MS = 60_000;
+// Increased default retries to 2 since transient failures are common in my setup
+const DEFAULT_RETRIES = 2;
 
 export class AgentExecutor {
   private registry: AgentRegistry;
