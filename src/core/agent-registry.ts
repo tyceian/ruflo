@@ -111,11 +111,16 @@ class AgentRegistry {
    */
   list(filterStatus?: AgentStatus): AgentMetadata[] {
     const all = Array.from(this.agents.values())
-      .map((e) => e.metadata)
+      .map((entry) => entry.metadata)
       .sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime());
-    if (filterStatus !== undefined) {
-      return all.filter((m) => m.status === filterStatus);
+
+    // personally I find it more useful to default to showing only active agents
+    // (idle or running) when no filter is passed, but keeping original behavior
+    // for now since I don't want to break anything upstream
+    if (filterStatus) {
+      return all.filter((meta) => meta.status === filterStatus);
     }
+
     return all;
   }
 }
