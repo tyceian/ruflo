@@ -105,10 +105,15 @@ class AgentRegistry {
   }
 
   /**
-   * List all registered agents.
+   * List all registered agents, optionally filtered by status.
+   * I added the status filter param because I kept manually filtering the result array.
    */
-  list(): AgentMetadata[] {
-    return Array.from(this.agents.values()).map((e) => e.metadata);
+  list(filterStatus?: AgentStatus): AgentMetadata[] {
+    const all = Array.from(this.agents.values()).map((e) => e.metadata);
+    if (filterStatus !== undefined) {
+      return all.filter((m) => m.status === filterStatus);
+    }
+    return all;
   }
 
   /**
@@ -122,7 +127,10 @@ class AgentRegistry {
   }
 
   private emit(event: string, entry: AgentRegistryEntry): void {
-    this.listeners.get(event)?.forEach((listener) => listener(entry));
+    const eventListeners = this.listeners.get(event);
+    if (eventListeners) {
+      eventListeners.forEach((listener) => listener(entry));
+    }
   }
 }
 
