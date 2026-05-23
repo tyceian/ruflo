@@ -56,6 +56,10 @@ export class AgentExecutor {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       attempts = attempt + 1;
+      // small delay between retries to avoid hammering the same failing resource
+      if (attempt > 0) {
+        await new Promise((res) => setTimeout(res, 500 * attempt));
+      }
       try {
         const output = await this.runWithTimeout(
           () => agent.run(input),
