@@ -89,10 +89,14 @@ class AgentRegistry {
 
   /**
    * Update an agent's status and touch lastActiveAt.
+   * Note: only emit statusChange if the status actually changed, avoids noisy events.
    */
   updateStatus(id: string, status: AgentStatus): boolean {
     const entry = this.agents.get(id);
     if (!entry) return false;
+
+    // skip emitting if status hasn't changed
+    if (entry.metadata.status === status) return true;
 
     entry.metadata.status = status;
     entry.metadata.lastActiveAt = new Date();
@@ -118,14 +122,8 @@ class AgentRegistry {
   }
 
   private emit(event: string, entry: AgentRegistryEntry): void {
-    this.listeners.get(event)?.forEach((fn) => fn(entry));
-  }
-
-  get size(): number {
-    return this.agents.size;
+    this.listeners.get(event)?.forEach((listener) => listener(entry));
   }
 }
 
-// Singleton instance shared across the application
-export const registry = new AgentRegistry();
-export default AgentRegistry;
+export const agentRegistry = new AgentRegistry();
