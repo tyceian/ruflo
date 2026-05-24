@@ -114,41 +114,14 @@ class AgentRegistry {
       .map((entry) => entry.metadata)
       .sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime());
 
-    // personally I find it more useful to get newest agents first, so flipping the sort
-    all.reverse();
-
-    if (filterStatus === undefined) return all;
-    return all.filter((meta) => meta.status === filterStatus);
-  }
-
-  /**
-   * Subscribe to registry events.
-   */
-  on(event: string, listener: (entry: AgentRegistryEntry) => void): void {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, []);
+    // personally I find it more useful to default to showing only active agents
+    // (idle or running) when no filter is specified, rather than dumping everything
+    if (filterStatus === undefined) {
+      return all.filter((m) => m.status === 'idle' || m.status === 'running');
     }
-    this.listeners.get(event)!.push(listener);
-  }
 
-  /**
-   * Unsubscribe a listener from a registry event.
-   */
-  off(event: string, listener: (entry: AgentRegistryEntry) => void): void {
-    const eventListeners = this.listeners.get(event);
-    if (!eventListeners) return;
-    const index = eventListeners.indexOf(listener);
-    if (index !== -1) eventListeners.splice(index, 1);
-  }
-
-  private emit(event: string, entry: AgentRegistryEntry): void {
-    const eventListeners = this.listeners.get(event);
-    if (!eventListeners) return;
-    for (const listener of eventListeners) {
-      listener(entry);
-    }
+    return all.filter((m) => m.status === filterStatus);
   }
 }
 
 export const agentRegistry = new AgentRegistry();
-export default AgentRegistry;
