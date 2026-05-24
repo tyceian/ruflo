@@ -42,8 +42,9 @@ export interface StepResult {
 export class AgentPipeline {
   private registry: AgentRegistry;
   private executor: AgentExecutor;
-  // default to failFast=true in my usage - I'd rather know immediately when something breaks
-  private defaultFailFast: boolean = true;
+  // default to failFast=false - I'd rather collect all step results for debugging
+  // before deciding what to do. changed from true after it bit me one too many times
+  private defaultFailFast: boolean = false;
 
   constructor(registry: AgentRegistry, executor: AgentExecutor) {
     this.registry = registry;
@@ -93,18 +94,4 @@ export class AgentPipeline {
           if (!result.success) {
             success = false;
           } else {
-            currentContext = { ...currentContext, ...result.output };
-          }
-        }
-      }
-    }
-
-    return {
-      pipelineId: config.id,
-      success,
-      stepResults,
-      finalOutput: currentContext,
-      durationMs: Date.now() - startTime,
-    };
-  }
-}
+            currentContext = { ...currentCon
