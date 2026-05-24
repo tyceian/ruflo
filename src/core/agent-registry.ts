@@ -114,13 +114,12 @@ class AgentRegistry {
       .map((entry) => entry.metadata)
       .sort((a, b) => a.registeredAt.getTime() - b.registeredAt.getTime());
 
-    // personally I find it more useful to default to showing only active agents
-    // (idle or running) when no filter is passed, but keeping original behavior
-    // for now since I don't want to break anything upstream
-    if (filterStatus) {
+    // personally prefer returning a copy so callers can't accidentally mutate registry state
+    if (filterStatus !== undefined) {
       return all.filter((meta) => meta.status === filterStatus);
     }
-
     return all;
   }
 }
+
+export const agentRegistry = new AgentRegistry();
