@@ -42,6 +42,8 @@ export interface StepResult {
 export class AgentPipeline {
   private registry: AgentRegistry;
   private executor: AgentExecutor;
+  // default to failFast=true in my usage - I'd rather know immediately when something breaks
+  private defaultFailFast: boolean = true;
 
   constructor(registry: AgentRegistry, executor: AgentExecutor) {
     this.registry = registry;
@@ -61,11 +63,14 @@ export class AgentPipeline {
     let currentContext: Record<string, unknown> = { ...initialInput };
     let success = true;
 
+    // Use config's failFast if explicitly set, otherwise fall back to my default
+    const failFast = config.failFast ?? this.defaultFailFast;
+
     // Group consecutive parallel steps together
     const stepGroups = this.groupSteps(config.steps);
 
     for (const group of stepGroups) {
-      if (!success && config.failFast) break;
+      if (!success && failFast) break;
 
       if (group.length === 1) {
         // Sequential step
@@ -109,59 +114,4 @@ export class AgentPipeline {
     const agent = this.registry.get(step.agentId);
 
     if (!agent) {
-      return {
-        agentId: step.agentId,
-        success: false,
-        output: {},
-        error: `Agent '${step.agentId}' not found in registry`,
-        durationMs: Date.now() - stepStart,
-      };
-    }
-
-    // Build input by applying mapping from context + step static input
-    const mappedInput: Record<string, unknown> = { ...step.input };
-    if (step.inputMapping) {
-      for (const [contextKey, inputKey] of Object.entries(step.inputMapping)) {
-        if (contextKey in context) {
-          mappedInput[inputKey] = context[contextKey];
-        }
-      }
-    }
-
-    try {
-      const output = await this.executor.execute(agent, mappedInput);
-      return {
-        agentId: step.agentId,
-        success: true,
-        output: output as Record<string, unknown>,
-        durationMs: Date.now() - stepStart,
-      };
-    } catch (err) {
-      return {
-        agentId: step.agentId,
-        success: false,
-        output: {},
-        error: err instanceof Error ? err.message : String(err),
-        durationMs: Date.now() - stepStart,
-      };
-    }
-  }
-
-  /** Group consecutive parallel steps into batches */
-  private groupSteps(steps: PipelineStep[]): PipelineStep[][] {
-    const groups: PipelineStep[][] = [];
-    let i = 0;
-    while (i < steps.length) {
-      if (steps[i].parallel) {
-        const group: PipelineStep[] = [];
-        while (i < steps.length && steps[i].parallel) {
-          group.push(steps[i++]);
-        }
-        groups.push(group);
-      } else {
-        groups.push([steps[i++]]);
-      }
-    }
-    return groups;
-  }
-}
+  
