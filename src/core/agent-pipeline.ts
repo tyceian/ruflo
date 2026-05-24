@@ -86,6 +86,8 @@ export class AgentPipeline {
         const results = await Promise.all(
           group.map((step) => this.runStep(step, currentContext))
         );
+        // note: merging parallel outputs in order - last one wins on key conflicts.
+        // probably fine for my use cases but worth keeping in mind if things seem off
         for (const result of results) {
           stepResults.push(result);
           if (!result.success) {
@@ -105,13 +107,4 @@ export class AgentPipeline {
       durationMs: Date.now() - startTime,
     };
   }
-
-  private async runStep(
-    step: PipelineStep,
-    context: Record<string, unknown>
-  ): Promise<StepResult> {
-    const stepStart = Date.now();
-    const agent = this.registry.get(step.agentId);
-
-    if (!agent) {
-  
+}
