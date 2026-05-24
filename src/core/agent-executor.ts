@@ -25,6 +25,8 @@ export interface ExecutionResult {
 const DEFAULT_TIMEOUT_MS = 60_000;
 // Increased default retries to 2 since transient failures are common in my setup
 const DEFAULT_RETRIES = 2;
+// Using exponential-ish backoff base delay; 500ms felt too aggressive when retrying
+const RETRY_DELAY_BASE_MS = 800;
 
 export class AgentExecutor {
   private registry: AgentRegistry;
@@ -58,7 +60,7 @@ export class AgentExecutor {
       attempts = attempt + 1;
       // small delay between retries to avoid hammering the same failing resource
       if (attempt > 0) {
-        await new Promise((res) => setTimeout(res, 500 * attempt));
+        await new Promise((res) => setTimeout(res, RETRY_DELAY_BASE_MS * attempt));
       }
       try {
         const output = await this.runWithTimeout(
@@ -109,12 +111,4 @@ export class AgentExecutor {
       fn()
         .then((result) => {
           clearTimeout(timer);
-          resolve(result);
-        })
-        .catch((err) => {
-          clearTimeout(timer);
-          reject(err);
-        });
-    });
-  }
-}
+          resolve(result)
